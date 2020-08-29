@@ -1,0 +1,145 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dockerhub-service
+secrets:
+  - name: dockercreds # Create secret for your container registry
+
+---
+
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: git-source
+spec:
+  type: git
+  params:
+    - name: revision
+      value: master
+    - name: url
+      value: https://github.com/redhat-developer-demos/knative-tutorial.git
+---
+
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: knative-tutorial-greeter-image
+spec:
+  type: image
+  params:
+    - name: url
+      value: vyomsoft/knative-tutorial-greeter
+      # if you are on OpenShift uncomment the line below
+      #value: "image-registry.openshift-image-registry.svc:5000/tutorial/helloworld"
+
+
+
+---
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  generateName: build-app-run
+spec:
+  serviceAccount: pipeline
+  taskRef:
+    name:  build-app
+  inputs:
+    resources:
+      - name: source
+        resourceRef:
+          name: git-source
+    #params:
+     # - name: contextDir
+      #  value: apps/greeter/java/quarkus
+      # Enable if you have maven mirrors to use
+       #- name: mavenMirrorUrl
+        # value: http://nexus:8081/nexus/content/groups/public
+  outputs:
+    resources:
+      - name: builtImage
+        resourceRef:
+          name: knative-tutorial-greeter-image
+
+---
+
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-app
+spec:
+  inputs:
+    resources:
+      - name: source
+        type: git
+    params:
+      - name: contextDir
+        description: the context dir within source
+        default: .
+      - name: mavenMirrorUrl
+        description: the maven mirrror url
+        default: http://repo1.maven.apache.org/maven2
+      - name: destinationImage
+        description: the fully qualified image name
+        default: "$(outputs.resources.builtImage.url)"
+      - name: dockerFile
+        description: the docker file to used for building the application
+        default: Dockerfile.jvm
+  outputs:
+    resources:
+      - name: builtImage
+        type: image
+  stepTemplate:
+    resources:
+      limits:
+        cpu: 4
+        memory: 4Gi
+      requests:
+        cpu: 2
+        memory: 2Gi
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
+      # the default underprivileged user to be used
+      runAsUser: 10001
+  steps:
+    - name: build-sources
+      image: quay.io/rhdevelopers/tutorial-tools:0.0.2
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      args:
+        - mvn
+        - -DskipTests
+        - clean
+        - package
+      env:
+        - name: MAVEN_MIRROR_URL
+          value: "$(inputs.params.mavenMirrorUrl)"
+    - name: build-image
+      image: quay.io/buildah/stable
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      command: ['buildah', 'bud', '--tls-verify=false', '--layers','-f', '$(inputs.params.dockerFile)', '-t', '$(inputs.params.destinationImage)', '.']
+      volumeMounts:
+        - name: varlibc
+          mountPath: /var/lib/containers
+      # override security context as container image build need to run as root
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+    - name: build-push
+      image: quay.io/buildah/stable
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      command: ["buildah","push", "--tls-verify=false","$(inputs.params.destinationImage)","docker://$(inputs.params.destinationImage)"]
+      volumeMounts:
+        - name: varlibc
+          mountPath: /var/lib/containers
+      # override security context as container image build need to run as root
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+  volumes:
+    - name: varlibc
+      emptyDir: {}
+

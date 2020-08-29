@@ -1,11 +1,16 @@
-# Dockerfile meant for local build (not via Jenkins)
-ARG REVISION=latest
 FROM openjdk:8-jdk-alpine
-ENV LANG C.UTF-8
+#ENV APP_PATH=/home/dev/IdeaProjects/spring-webflux-demo
+#WORKDIR $APP_PATH
+#WORKDIR /workspace
 
-#ADD docker_bootstrap.yml bootstrap.yml
-ADD target/spring-webflux*.jar spring-webflux-demo.jar
+#RUN echo "$PWD"
+
+
+ADD target/spring-webflux-demo*.jar spring-webflux-demo.jar
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "spring-webflux-demo.jar"]
-ENV LANG C.UTF-8
 
-EXPOSE 7710
+EXPOSE 7720
+
+
+
+

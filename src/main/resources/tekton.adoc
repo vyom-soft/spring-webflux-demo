@@ -1,0 +1,77 @@
+=== Tekton Pipeline
+
+
+
+** Basic example: https://tanzu.vmware.com/developer/guides/ci-cd/tekton-gs-p2/
+** https://github.com/tektoncd/pipeline/blob/master/docs/tasks.md#substituting-workspace-paths
+** Detaild example : https://github.com/IBM/tekton-tutorial
+
+====
+*** Must criteria: Minikube, OpenShift, Cloud must be up and running.
+====
+
+====
+** Install Tekton
+* kubectl apply --filename https://storage.googleapis.com/tekton-releases/pipeline/latest/release.yaml
+====
+
+====
+You can monitor the progress of the install by watching the pods in the newly created tekton-pipelines namespace:
+
+* kubectl get pods -namespace tekton-pipelines --watch
+====
+
+
+Once the installation is complete, you’ll see two newly created pods:
+
+tekton-pipelines-webhook-69796f78cf-b28z4      1/1     Running             0          9s
+tekton-pipelines-controller-6d55778887-df59t   1/1     Running             0         12s
+
+=== Tekton CLI
+* For : Linux AMD 64
+=====
+# Get the tar.xz
+curl -LO https://github.com/tektoncd/cli/releases/download/v0.11.0/tkn_0.11.0_Linux_x86_64.tar.gz
+# Extract tkn to your PATH (e.g. /usr/local/bin)
+sudo tar xvzf tkn_0.11.0_Linux_x86_64.tar.gz -C /usr/local/bin/ tkn
+=====
+
+#DockerHub  (To push the stuff to DockerHub.) i.e pushing up container images to Docker Hub
+* kubectl create secret docker-registry dockercreds --docker-server=https://index.docker.io/v1/ --docker-username=<DOCKERHUB_USERNAME> --docker-password=<DOCKERHUB_PASSWORD> --docker-email <DOCKERHUB_EMAIL>
+
+Tekton consist of following entities.
+
+    * Task
+        https://github.com/tektoncd/pipeline/blob/master/docs/tasks.md
+
+        A Task defines a set of build steps such as compiling code, running tests, and building and deploying images.
+        Task is the most basic building block of a CI/CD pipeline.
+        Is responsible for running a series of steps as part of a
+        given CI/CD workflow. It will define `Inputs`, `Outputs`, and `Steps` for a given “Task”.
+        These are then consumed in TaskRun or Pipeline resources, where we can connect Task resources.
+        Task resources can be made to have shared volumes, which are mounted
+        into the running Pod during a TaskRun.
+        Enabling content that is produced between steps to be easily accessible.
+        Each task runs in its own container.
+
+    * Pipeline
+
+        A Pipeline defines the set of Tasks that compose a pipeline.
+        Enables the representation of  dependency structures of Task resources.
+
+        https://github.com/tektoncd/pipeline/blob/master/docs/pipelines.md#ordering
+        image::file.png[]
+
+    * PipelineResource
+        Is used to model and interact with external entities such as Git repositories, image registries, pull requests, and cloud storage. PipelineResources are used as inputs to and outputs from Tasks.
+
+    * TaskRun
+        In order to run the task, we need another resource called as TaskRun. It defines how to run a specific Tasks defined in the steps.
+        i.e Will result in a defined Task resources being run in their defined containers within a singular Pod resource.
+
+    * PipelineRun
+        A PipelineRun defines an execution of a pipeline. It references the Pipeline to run and the PipelineResources to use as inputs and outputs.
+        Facilitates the actual running of a defined Pipeline and its corresponding graph of Task resources, in the required ordering.
+
+    ==TODO
+    * Workspace support in Tekton 0.10 simplifies sharing files and artifacts between tasks in a pipeline, such as passing a JAR file from one task to another, or caching build dependencies

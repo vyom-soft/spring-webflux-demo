@@ -11,7 +11,7 @@ import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoClients;
  
 @Configuration
-@EnableReactiveMongoRepositories(basePackages = "com.howtodoinjava.demo.dao")
+@EnableReactiveMongoRepositories(basePackages = "de.vm.webflux.demo")
 public class MongoConfig extends AbstractReactiveMongoConfiguration
 {  
     @Value("${port}")

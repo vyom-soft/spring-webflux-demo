@@ -1,0 +1,19 @@
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineRun
+metadata:
+  generateName: spring-webflux-demo-run-
+spec:
+  pipelineRef:
+    name: maven-build
+  resources:
+    - name: app-git
+      resourceSpec:
+        type: git
+        params:
+          - name: url
+            value: https://github.com/vyom-soft/spring-webflux-demo.git
+  workspaces:
+    - name: local-maven-repo
+      persistentVolumeClaim:
+        claimName: maven-repo-pvc

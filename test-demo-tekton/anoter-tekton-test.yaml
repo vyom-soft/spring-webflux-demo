@@ -1,0 +1,60 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dockerhub-service
+secrets:
+  - name: dockercreds # Create secret for your container registry
+
+---
+
+apiVersion: tekton.dev/v1beta1
+kind: Task
+metadata:
+  name: build-image
+
+spec:
+  params:
+    - name: pathToDockerFile
+      default: /workspace/docker-source/Dockerfile
+
+    - name: pathToContext
+      default: /workspace/docker-source
+    - name: imageUrl
+      default: vyomsoft/san-springboot-app
+    - name: imageTag
+      default: "san-spring-app:v1.0"
+    - name: sshHost
+      default: 192.168.10.69
+    - name: sshFullPath
+      default: san-springboot-app/san-demo.tar.gz
+  steps:
+    - name: build-image
+      image: gcr.io/kaniko-project/executor:debug
+      securityContext:
+        runAsUser: 0
+      command:
+        - sh
+        - -c
+        - "
+            /kaniko/executor \
+            --dockerfile=$(params.pathToDockerFile) \
+            --destination=$(params.imageUrl)/$(params.imageTag) \
+            --context=$(params.pathToContext) \
+            --skip-tls-verify
+          "
+---
+apiVersion: tekton.dev/v1beta1
+kind: TaskRun
+metadata:
+  name: san-build-and-push
+
+spec:
+  serviceAccountName: dockerhub-service
+  taskRef:
+    name: build-image
+  params:
+    - name: pathToDockerFile
+      value: Dockerfile
+    - name: imageTag
+      value: san-springboot-app:1.0

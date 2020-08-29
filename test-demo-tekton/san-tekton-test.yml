@@ -1,0 +1,136 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: dockerhub-service
+secrets:
+  - name: dockercreds # Create secret for your container registry
+
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: spring-webflux-demo-git
+spec:
+  type: git
+  params:
+    - name: revision
+      value: master
+    - name: url
+      value: https://github.com/vyom-soft/spring-webflux-demo.git
+
+---
+apiVersion: tekton.dev/v1alpha1
+kind: PipelineResource
+metadata:
+  name: spring-webflux-tekton-demo-image
+spec:
+  type: image
+  params:
+    - name: url
+      value: vyomsoft/spring-webflux-tekton-demo
+
+---
+
+
+
+apiVersion: tekton.dev/v1alpha1
+kind: Task
+metadata:
+  name: my-build-app
+spec:
+  inputs:
+    resources:
+      - name: source
+        type: git
+    params:
+      - name: contextDir
+        description: the context dir within source
+        default: .
+      - name: mavenMirrorUrl
+        description: the maven mirrror url
+        default: http://repo1.maven.apache.org/maven2
+      - name: destinationImage
+        description: the fully qualified image name
+        default: "$(outputs.resources.builtImage.url)"
+      - name: dockerFile
+        description: the docker file to used for building the application
+        default: Dockerfile
+  outputs:
+    resources:
+      - name: builtImage
+        type: image
+  stepTemplate:
+    resources:
+      limits:
+        cpu: 4
+        memory: 4Gi
+      requests:
+        cpu: 2
+        memory: 2Gi
+    securityContext:
+      allowPrivilegeEscalation: false
+      privileged: false
+      # the default underprivileged user to be used
+      runAsUser: 10001
+  steps:
+    - name: build-sources
+      image: vyomsoft/my-spring-webflux:latest
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      args:
+        - mvn
+        - -DskipTests
+        - clean
+        - package
+      env:
+        - name: MAVEN_MIRROR_URL
+          value: "$(inputs.params.mavenMirrorUrl)"
+    - name: build-image
+      image: quay.io/buildah/stable
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      command: ['buildah', 'bud', '--tls-verify=false', '--layers','-f', '$(inputs.params.dockerFile)', '-t', '$(inputs.params.destinationImage)', '.']
+      volumeMounts:
+        - name: varlibc
+          mountPath: /var/lib/containers
+      # override security context as container image build need to run as root
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+    - name: build-push
+      image: quay.io/buildah/stable
+      workingDir: "/workspace/source/$(inputs.params.contextDir)"
+      command: ["buildah","push", "--tls-verify=false","$(inputs.params.destinationImage)","docker://$(inputs.params.destinationImage)"]
+      volumeMounts:
+        - name: varlibc
+          mountPath: /var/lib/containers
+      # override security context as container image build need to run as root
+      securityContext:
+        allowPrivilegeEscalation: true
+        runAsUser: 0
+        privileged: true
+  volumes:
+    - name: varlibc
+      emptyDir: {}
+
+
+
+---
+
+apiVersion: tekton.dev/v1alpha1
+kind: TaskRun
+metadata:
+  name: my-build-app-run
+spec:
+  serviceAccountName: dockerhub-service
+  taskRef:
+    name: my-build-app
+  inputs:
+    resources:
+      - name: docker-source
+        resourceRef:
+          name: spring-webflux-demo-git
+    outputs:
+      - name: builtImage
+        resourceRef:
+          name: spring-webflux-tekton-demo-image

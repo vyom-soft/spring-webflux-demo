@@ -1,0 +1,182 @@
+##############################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-webflux-demo-mongo
+  namespace: default
+  labels:
+    helm.sh/chart: mongo-0.1.0
+    app.kubernetes.io/name: mongo
+    app.kubernetes.io/instance: spring-webflux-demo
+    app.kubernetes.io/version: "1.1.0.BUILD-SNAPSHOT"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 600
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mongo
+      app.kubernetes.io/instance: spring-webflux-demo
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mongo
+        app.kubernetes.io/instance: spring-webflux-demo
+    spec:
+      containers:
+        - name: mongo
+          #image: docker-dev.art.intern/mongo:bionic
+          image: mongo
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: normal-access
+              containerPort: 27017
+              protocol: TCP
+          resources: {}
+        #imagePullSecrets:
+        # - name: artifactory-acc
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spring-webflux-demo
+  namespace: default
+data:
+  application.yaml: |-
+    debug: false
+
+    spring:
+      profiles.active: local
+      autoconfigure.exclude:
+        - org.springframework.boot.actuate.autoconfigure.health.HealthEndpointAutoConfiguration
+        - org.springframework.boot.autoconfigure.data.mongo.MongoRepositoriesAutoConfiguration
+        - org.springframework.boot.autoconfigure.mongo.MongoAutoConfiguration
+      mvc:
+        locale: en_US
+
+    server:
+      port: 7720
+      ssl:
+        enabled: false #TODO should be 'true' later
+
+
+    management:
+      security.enabled: true # disables security (for local profile only!)
+      endpoint.health:
+        enabled: true
+      endpoint.info:
+        enabled: true
+      endpoints.web.exposure.include: "health,info"
+
+    security:
+      basic.enabled: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: spring-webflux-demo
+  namespace: default
+  labels:
+    helm.sh/chart: spring-webflux-demo-0.1.0
+    app.kubernetes.io/name: springwebfluxdemo
+    app.kubernetes.io/instance: spring-webflux-demo
+    app.kubernetes.io/version: "1.1.0.BUILD-SNAPSHOT"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: springwebfluxdemo
+      app.kubernetes.io/instance: spring-webflux-demo
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: springwebfluxdemo
+        app.kubernetes.io/instance: spring-webflux-demo
+    spec:
+      #      imagePullSecrets:
+      #        - name: regcred
+      containers:
+        - name: springwebfluxdemo
+          securityContext: {}
+          image: spring-webflux-demo:latest
+          imagePullPolicy: IfNotPresent
+          resources: {}
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      dnsPolicy: ClusterFirst
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spring-webflux-demo
+  namespace: default
+  labels:
+    helm.sh/chart: springwebfluxdemo-0.1.0
+    app.kubernetes.io/name: springwebfluxdemo
+    app.kubernetes.io/instance: spring-webflux-demo
+    app.kubernetes.io/version: "1.1.0.BUILD-SNAPSHOT"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: NodePort
+  externalTrafficPolicy: Cluster
+  ports:
+    - port: 7720
+  selector:
+    app.kubernetes.io/name: springwebfluxdemo
+    app.kubernetes.io/instance: dodocommentmgr
+  sessionAffinity: None
+---
+
+
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+
+metadata:
+  name: spring-webflux-demo
+  namespace: default
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - services
+      - pods
+      - endpoints
+      - namespaces
+      - configmaps
+      - secrets
+    verbs:
+    verbs:
+      - get
+      - list
+      - watch
+---
+#apiVersion: v1
+#kind: ServiceAccount
+#metadata:
+ # name: dockerhub-service
+#secrets:
+ # - name: dockercreds # Create secret for your container registry
